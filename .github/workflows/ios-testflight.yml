@@ -16,7 +16,7 @@ jobs:
   testflight:
     uses: kappado2000/ci-flutter/.github/workflows/ios-testflight.yml@main
     with:
-      app_id: 'COMPLETAT_DE_SCRIPT'
+      app_id: '6838239607'
       bundle_id: com.kappado2000.retea
       profile_name: Retea App Store
     secrets: inherit
