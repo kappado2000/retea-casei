@@ -1,0 +1,22 @@
+name: iOS TestFlight build
+
+on:
+  workflow_dispatch: {}
+  # Verificare săptămânală (luni, 06:00 UTC): build nou doar dacă ultimul build
+  # TestFlight expiră în mai puțin de 21 de zile. Acord explicit al userului
+  # pentru reînnoirile automate TestFlight: 2026-10-28.
+  schedule:
+    - cron: '0 6 * * 1'
+
+permissions:
+  actions: write
+  contents: write
+
+jobs:
+  testflight:
+    uses: kappado2000/ci-flutter/.github/workflows/ios-testflight.yml@main
+    with:
+      app_id: 'COMPLETAT_DE_SCRIPT'
+      bundle_id: com.kappado2000.retea
+      profile_name: Retea App Store
+    secrets: inherit
