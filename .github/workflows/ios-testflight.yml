@@ -19,4 +19,5 @@ jobs:
       app_id: '6838239607'
       bundle_id: com.kappado2000.retea
       profile_name: Retea App Store
+      switch_to_manual_signing: true
     secrets: inherit
