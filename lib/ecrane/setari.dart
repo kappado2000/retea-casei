@@ -85,6 +85,12 @@ class _EcranSetariState extends State<EcranSetari> {
               TextField(
                 controller: parola,
                 obscureText: true,
+                autocorrect: false,
+                enableSuggestions: false,
+                smartDashesType: SmartDashesType.disabled,
+                smartQuotesType: SmartQuotesType.disabled,
+                keyboardType: TextInputType.visiblePassword,
+                textCapitalization: TextCapitalization.none,
                 decoration: const InputDecoration(
                   labelText: 'Parola admin',
                   hintText: '•••••• (lasă gol ca s-o păstrezi)',
@@ -103,6 +109,16 @@ class _EcranSetariState extends State<EcranSetari> {
                   );
                 },
                 child: const Text('Salvează și citește ruterul'),
+              ),
+              const SizedBox(height: 6),
+              OutlinedButton.icon(
+                icon: const Icon(Icons.network_check),
+                label: const Text('Testează conexiunea'),
+                onPressed: () async {
+                  setState(() => mesaj = 'Verific…');
+                  final r = await widget.m.diagnostic();
+                  if (mounted) setState(() => mesaj = r);
+                },
               ),
               if (mesaj.isNotEmpty)
                 Padding(

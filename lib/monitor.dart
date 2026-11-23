@@ -167,6 +167,47 @@ class Monitor extends ChangeNotifier with WidgetsBindingObserver {
     await citesteRuterAcum();
   }
 
+  /// Verifică pe rând: rețeaua, ruterul, parola. Întoarce un text pentru utilizator.
+  Future<String> diagnostic() async {
+    final linii = <String>[];
+    final p = await ping(ruterIp);
+    linii.add(
+      p != null ? '✓ Ruterul răspunde la ping (${p.toStringAsFixed(0)} ms)' : '✕ Ruterul NU răspunde la ping — telefonul nu e în rețeaua casei sau rețeaua locală e blocată pentru aplicație',
+    );
+    try {
+      final r = await http
+          .post(
+            Uri.parse(
+              'http://$ruterIp/cgi-bin/luci/;stok=/login?form=keys&operation=read',
+            ),
+          )
+          .timeout(const Duration(seconds: 6));
+      linii.add(
+        r.statusCode == 200
+            ? '✓ Interfața AX73 răspunde'
+            : '✕ Interfața AX73 răspunde cu cod ${r.statusCode}',
+      );
+    } catch (_) {
+      linii.add(
+        '✕ Interfața AX73 nu răspunde (Configurări → Confidențialitate → Rețea locală → Rețeaua casei: pornit?)',
+      );
+      return linii.join('\n');
+    }
+    final parolaSalvata = await parola();
+    if (parolaSalvata.isEmpty) {
+      linii.add('✕ Nu e salvată nicio parolă');
+      return linii.join('\n');
+    }
+    linii.add('Parola salvată are ${parolaSalvata.length} caractere');
+    await citesteRuterAcum();
+    linii.add(
+      eroareRuter.isEmpty
+          ? '✓ Login reușit, datele s-au citit'
+          : '✕ $eroareRuter',
+    );
+    return linii.join('\n');
+  }
+
   Future<void> reimprospateaza() async {
     await _ciclu(fortat: true);
   }

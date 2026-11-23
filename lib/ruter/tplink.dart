@@ -176,11 +176,19 @@ class ClientSG {
       );
     }
     if (dec['success'] != true) {
-      final cod =
-          dec['errorcode'] ??
-          (dec['data'] is Map ? dec['data']['errorcode'] : null) ??
-          'necunoscut';
-      throw EroareRuter('Login respins de AX73: $cod');
+      final date = dec['data'] is Map ? dec['data'] as Map : const {};
+      final cod = '${dec['errorcode'] ?? date['errorcode'] ?? 'necunoscut'}';
+      final incercari = date['failureCount'] != null
+          ? ' (încercări greșite: ${date['failureCount']} din ${date['attemptsAllowed'] ?? '?'})'
+          : '';
+      throw EroareRuter(switch (cod) {
+        'login failed' =>
+          'AX73 a respins parola$incercari. Verifică parola (literele mari/mici contează).',
+        'user conflict' => 'Altcineva e logat chiar acum în interfața AX73 (browser sau laptop). Reîncerc la următoarea citire.',
+        'exceeded max attempts' =>
+          'AX73 a blocat temporar login-ul după prea multe parole greșite$incercari. Așteaptă câteva minute.',
+        _ => 'Login respins de AX73: $cod$incercari',
+      });
     }
     _stok = dec['data']['stok'];
     _cookie = _sysauth(r) ?? '';

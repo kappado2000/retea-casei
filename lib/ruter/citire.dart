@@ -55,8 +55,14 @@ Future<DateRuter> citesteTot(String parola) async {
   final c = ClientSG('http://$ruterIp', parola);
   try {
     await c.login();
-  } catch (e) {
+  } on EroareRuter catch (e) {
     d.eroare = '$e';
+    return d;
+  } catch (e) {
+    // fără răspuns de la ruter: telefonul nu e în rețeaua casei sau iOS blochează rețeaua locală
+    d.eroare =
+        'Telefonul nu ajunge la ruter ($ruterIp). Ești pe Wi-Fi-ul casei (sau pe VPN)? '
+        'În Configurări → Confidențialitate și securitate → Rețea locală, „Rețeaua casei” trebuie să fie pornită.';
     return d;
   }
   try {

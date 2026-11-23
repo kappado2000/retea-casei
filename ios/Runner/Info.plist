@@ -66,6 +66,8 @@
 		<string>UIInterfaceOrientationLandscapeLeft</string>
 		<string>UIInterfaceOrientationLandscapeRight</string>
 	</array>
+	<key>ITSAppUsesNonExemptEncryption</key>
+	<false/>
 	<key>NSLocalNetworkUsageDescription</key>
 	<string>Rețeaua casei verifică ruterele, extenderele și aparatele din rețeaua ta de acasă.</string>
 	<key>NSAppTransportSecurity</key>
