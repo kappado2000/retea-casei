@@ -2,6 +2,9 @@
 class Aparat {
   final String id, nume, rol, loc, tip; // tip: infra | iot | info
   final String? mac, macMesh, verificare, parinte, parinteDorit;
+
+  /// (url, text): cum recunoaștem aparatul după ce răspunde, oricare i-ar fi IP-ul
+  final (String, String)? semnatura;
   final String ipImplicit;
   final double pierderiMax, msMax;
   const Aparat(
@@ -16,6 +19,7 @@ class Aparat {
     this.verificare,
     this.parinte,
     this.parinteDorit,
+    this.semnatura,
     this.pierderiMax = 10,
     this.msMax = 60,
   });
@@ -92,6 +96,7 @@ const aparate = <Aparat>[
     '192.168.0.165',
     macMesh: 'ac-15-a2-d4-27-9a',
     parinte: 'ax53s',
+    semnatura: ('http://{ip}/', 'tplink'),
     pierderiMax: 10,
     msMax: 80,
   ),
@@ -128,6 +133,7 @@ const aparate = <Aparat>[
     pierderiMax: 20,
     msMax: 400,
     verificare: 'http://{ip}/rpc/Sys.GetInfo',
+    semnatura: ('http://{ip}/rpc/Sys.GetInfo', '"1p7k_'),
   ),
   Aparat(
     'm2w',
@@ -139,6 +145,7 @@ const aparate = <Aparat>[
     pierderiMax: 60,
     msMax: 800,
     verificare: 'http://{ip}/rpc/Sys.GetInfo',
+    semnatura: ('http://{ip}/rpc/Sys.GetInfo', '"m2w_'),
   ),
   Aparat(
     'shelly',
@@ -151,6 +158,7 @@ const aparate = <Aparat>[
     pierderiMax: 25,
     msMax: 500,
     verificare: 'http://{ip}/shelly',
+    semnatura: ('http://{ip}/shelly', '3076f5385574'),
   ),
 ];
 

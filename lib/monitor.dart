@@ -22,6 +22,7 @@ const etichete = {
 };
 
 Future<double?> ping(String ip, {int timeoutSec = 2}) async {
+  if (ip.isEmpty) return null; // aparat negăsit în rețea
   try {
     final r = await Ping(
       ip,
@@ -126,6 +127,10 @@ class Monitor extends ChangeNotifier with WidgetsBindingObserver {
       inventar = (jsonDecode(_prefs!.getString('inventar') ?? '{}') as Map).map(
         (k, v) => MapEntry(k as String, Map<String, String>.from(v as Map)),
       );
+      final ipuri = jsonDecode(_prefs!.getString('ip_aparate') ?? '{}') as Map;
+      ipuri.forEach((k, v) {
+        if (tinte[k] != null && v is String && v.isNotEmpty) tinte[k]!.ip = v;
+      });
       intensivGata.addAll(
         (jsonDecode(_prefs!.getString('intensiv') ?? '[]') as List)
             .cast<Map<String, dynamic>>(),
@@ -264,6 +269,7 @@ class Monitor extends ChangeNotifier with WidgetsBindingObserver {
         d = await citesteTot(await parola());
       }
       eroareRuter = d.eroare;
+      final verificate = <String, String>{}; // ip -> id aparat confirmat
       if (d.ok) {
         ruter = d;
         for (final n in d.mesh) {
@@ -272,9 +278,34 @@ class Monitor extends ChangeNotifier with WidgetsBindingObserver {
               n.ip.isNotEmpty &&
               n.ip != '0.0.0.0' &&
               a.mac != null) {
-            tinte[a.id]!.ip = n.ip;
+            _schimbaIp(tinte[a.id]!, n.ip);
+            verificate[n.ip] = a.id;
           }
         }
+        // aparatele cu MAC propriu (invertor, Lektrico, Shelly…), din listele de clienți ale nodurilor
+        final toti = d.clientiPeNod.values.expand((l) => l).toList();
+        for (final c in toti) {
+          if (c.ip.isEmpty || c.ip == '0.0.0.0') continue;
+          for (final t in tinte.values) {
+            final m = t.a.mac;
+            if (m != null && macNormal(m) == macNormal(c.mac)) {
+              _schimbaIp(t, c.ip);
+              verificate[c.ip] = t.a.id;
+            }
+          }
+        }
+        // aparat cu MAC propriu care lipsește, iar la IP-ul lui e alt dispozitiv (ex. EAP245 → Shelly)
+        for (final t in tinte.values.where(
+          (t) => t.a.mac != null && t.a.tip == 'infra',
+        )) {
+          final m = macNormal(t.a.mac);
+          final prezent =
+              toti.any((c) => macNormal(c.mac) == m) ||
+              d.mesh.any((n) => acelasiAparat(n.mac, m));
+          final altul = toti.any((c) => c.ip == t.ip && macNormal(c.mac) != m);
+          if (!prezent && altul && t.a.id != 'ax73') _schimbaIp(t, '');
+        }
+        await _cautaDupaSemnatura(verificate);
       }
     } finally {
       citesteRuter = false;
@@ -282,7 +313,103 @@ class Monitor extends ChangeNotifier with WidgetsBindingObserver {
     }
   }
 
+  void _schimbaIp(Tinta t, String nou) {
+    if (nou == t.ip) return;
+    final vechi = t.ip;
+    t.ip = nou;
+    t.istoric.clear();
+    t.esecuri = 0;
+    t.succese = 0;
+    t.httpOk = null;
+    _ev(
+      nou.isEmpty ? 'avertisment' : 'info',
+      t.a.id,
+      nou.isEmpty
+          ? '${t.a.numeComplet} nu mai e în rețea (la $vechi răspunde alt aparat)'
+          : '${t.a.numeComplet}: IP nou $vechi → $nou',
+    );
+    _prefs?.setString(
+      'ip_aparate',
+      jsonEncode({for (final x in tinte.values) x.a.id: x.ip}),
+    );
+  }
+
+  Future<bool> _areSemnatura(Aparat a, String ip) async {
+    final (url, text) = a.semnatura!;
+    try {
+      final r = await http
+          .get(Uri.parse(url.replaceAll('{ip}', ip)))
+          .timeout(const Duration(seconds: 3));
+      return r.body.toLowerCase().contains(text.toLowerCase());
+    } catch (_) {
+      return false;
+    }
+  }
+
+  bool _cauta = false;
+
+  /// La un IP confirmat (MAC de la ruter sau semnătură) nu poate răspunde alt aparat:
+  /// cel care îl mai pretinde nu mai e în rețea (ex. EAP245 oprit, Shelly i-a luat IP-ul).
+  void _elibereazaIpLuate(Map<String, String> cine) {
+    for (final t in tinte.values) {
+      final id = cine[t.ip];
+      if (id != null && id != t.a.id && t.a.tip != 'info') _schimbaIp(t, '');
+    }
+  }
+
+  /// Aparatele din spatele RE315 (Shelly, M2W) și RE315 însuși nu au MAC sigur: le căutăm
+  /// după ce răspund (Shelly după ID, Lektrico după model, RE315 după pagina TP-Link).
+  Future<void> _cautaDupaSemnatura(Map<String, String> ocupate) async {
+    if (_cauta) return;
+    final lipsa = <Tinta>[];
+    for (final t in tinte.values.where((t) => t.a.semnatura != null)) {
+      if (t.ip.isNotEmpty && await _areSemnatura(t.a, t.ip)) {
+        ocupate[t.ip] = t.a.id;
+      } else {
+        lipsa.add(t);
+      }
+    }
+    if (lipsa.isEmpty) {
+      _elibereazaIpLuate(ocupate);
+      return;
+    }
+    _cauta = true;
+    try {
+      final candidati = <String>{
+        for (final c
+            in (ruter?.clientiPeNod.values.expand((l) => l) ?? <Client>[]))
+          if (c.ip.isNotEmpty) c.ip,
+        for (var i = 2; i < 255; i++)
+          '192.168.0.$i', // și restul rețelei (aparatele din spatele RE315)
+      }.where((ip) => !ocupate.containsKey(ip)).toList();
+      for (final t in lipsa) {
+        String? gasit;
+        for (var i = 0; i < candidati.length && gasit == null; i += 40) {
+          final grup = candidati.sublist(
+            i,
+            (i + 40).clamp(0, candidati.length),
+          );
+          final rez = await Future.wait(
+            grup.map((ip) => _areSemnatura(t.a, ip)),
+          );
+          final k = rez.indexOf(true);
+          if (k >= 0) gasit = grup[k];
+        }
+        if (gasit != null) {
+          _schimbaIp(t, gasit);
+          candidati.remove(gasit);
+          ocupate[gasit] = t.a.id;
+        }
+      }
+    } finally {
+      _cauta = false;
+      notifyListeners();
+    }
+    _elibereazaIpLuate(ocupate);
+  }
+
   (String, String) _stareBruta(Tinta t) {
+    if (t.ip.isEmpty) return ('cazut', 'nu apare în rețea (IP necunoscut)');
     final areHttp = t.a.verificare != null;
     if (t.esecuri >= 3 && !(areHttp && t.httpOk == true)) {
       return ('cazut', 'nu răspunde de ${t.esecuri * 10} s');
